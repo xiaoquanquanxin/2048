@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport">
+    <title>2048</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 1em;
+            padding-top: 0.21em;
+        }
+
+        ul {
+            width: 7.2em;
+            height: 1.8em;
+            background-color: lightyellow;
+            list-style: none;
+            box-sizing: border-box;
+            margin: auto;
+            clear: both;
+            overflow: hidden;
+        }
+
+        li {
+            float: left;
+            width: 3.6em;
+            height: 3.6em;
+            box-sizing: border-box;
+            line-height: 3.6em;
+            text-align: center;
+            border-radius: 0.2em;
+            font-size: 0.5em;
+            border: 0.1em solid #6a4545;
+            color: lightgreen;
+            transition: background-color 0.3s;
+        }
+
+        .rightkong {
+            box-shadow: green 0.15em 0 0.1em inset, green 0 -0.15em 0.1em inset, green 0 0.15em 0.1em inset;
+        }
+
+        .leftkong {
+            box-shadow: green -0.15em 0 0.1em inset, green 0 -0.15em 0.1em inset, green 0 0.15em 0.1em inset;
+        }
+
+        .leftkong.rightkong {
+            box-shadow: transparent -0.15em 0 0.1em inset, green 0 -0.15em 0.1em inset, green 0 0.15em 0.1em inset;
+        }
+
+        .upkong {
+            box-shadow: green 0.15em 0 0.1em inset, green -0.15em 0 0.1em inset, green 0 0.15em 0.1em inset;
+        }
+
+        .underkong {
+            box-shadow: green 0.15em 0 0.1em inset, green -0.15em 0 0.1em inset, green 0 -0.15em 0.1em inset;
+        }
+
+        .upkong.underkong {
+            box-shadow: transparent 0 0.15em 0.1em inset, green 0.15em 0 0.1em inset, green -0.15em 0 0.1em inset;
+        }
+
+        .pic {
+            width: 2em;
+            height: 2.6em;
+            background-image: url("img/a.png");
+            background-repeat: no-repeat;
+            background-position: 0em 0em;
+            background-size: 16em;
+        }
+    </style>
+</head>
+<body>
+<div id="wrap"></div>
+<div id="pic" class="pic"></div>
+</body>
+<script>
+    (function (doc, win) {
+        var docEle = doc.documentElement;
+        var evt = "onorientationchange" in window ? "orientationchange" : "resize";//区分Mobile和PC以加载不同的事件
+        var fn = function () {
+            var width = docEle.clientWidth;
+            if (width < 320) {
+                docEle.style.fontSize = 42.6667 + "px";
+            }
+            else if (width > 750) {
+                docEle.style.fontSize = 100 + "px";
+            }
+            else {
+                docEle.style.fontSize = 100 * (width / 750) + "px";
+            }
+        };
+        win.addEventListener(evt, fn, false);
+        doc.addEventListener("DOMContentLoaded", fn, false);
+    }(document, window));
+</script>
+<script>
+    //  两个阀
+    var real = false;
+    var j = null;
+    var wrap = document.getElementById("wrap");
+    //  DOM元素
+    var uls = [];
+    var lis = [];
+    //  我需要一个数组存放我目前出现的全部方块，包括新产生的和已经存在的方块
+    var activeObj = {};
+    //  我需要一个数组存放我可以产生方块位置
+    var emptyObj = {};
+    createSqu();
+    createActive();
+    //  生成全部初始块
+    function createSqu() {
+        var str = "<ul>";
+        for (var i = 1; i <= 4; i++) {
+            for (var m = 1; m <= 4; m++) {
+                str += "<li>" + i + m + "</li>";
+                emptyObj["" + i + m] = {"emptyRow": i, "emptyCol": m}
+            }
+            if (i == 4) {
+                str += "</ul>"
+            } else {
+                str += "</ul><ul>"
+            }
+        }
+        wrap.innerHTML = str;
+        uls = wrap.getElementsByTagName("ul");
+        for (var k = 0; k < uls.length; k++) {
+            lis.push(uls[k].getElementsByTagName("li"));
+        }
+    }
+    var addClassObj = [];
+    //  生成一个块
+    function createActive() {
+        var ulsIndex = randFN(1, 4);
+        var lisIndex = randFN(1, 4);
+        //  位置重复
+        var repeat = true;
+        //  没有位置了
+        var endGame = true;
+        for (var item in emptyObj) {
+            endGame = false;
+            if (emptyObj[item]["emptyRow"] == ulsIndex && emptyObj[item]["emptyCol"] == lisIndex) {
+                delete emptyObj[item];
+                activeObj["" + ulsIndex + lisIndex] = {
+                    "activeRow": ulsIndex,
+                    "activeCol": lisIndex,
+                    "point": (randFN(1, 100) <= 80) ? 2 : 4
+                };
+                repeat = false;
+                break;
+            }
+        }
+        var reallyEnd = true;
+        if (endGame) {
+            var activeIndexes = Object.keys(activeObj).sort(function (a, b) {
+                return a - b;
+            });
+            for (var ac = 0; ac < activeIndexes.length; ac++) {
+                if (activeObj[activeIndexes[ac]]) {
+                    //  上下按是横向可以继续
+                    if (activeObj[activeIndexes[ac] - -1] && activeObj[activeIndexes[ac] - -1]["point"] == activeObj[activeIndexes[ac]]["point"]) {
+                        console.log("可以继续");
+                        var lac = activeObj[activeIndexes[ac]];
+                        var lbc = activeObj[activeIndexes[ac] - -1];
+                        var lisa = lis[lac["activeRow"] - 1][lac["activeCol"] - 1];
+                        var lisb = lis[lbc["activeRow"] - 1][lbc["activeCol"] - 1];
+                        lisa.setAttribute("class", lisa.getAttribute("class") + "  rightkong");
+                        lisb.setAttribute("class", "leftkong");
+                        reallyEnd = false;
+                        addClassObj.push(lisa);
+                        addClassObj.push(lisb);
+                    }
+
+                    if (activeObj[activeIndexes[ac] - -10] && activeObj[activeIndexes[ac] - -10]["point"] == activeObj[activeIndexes[ac]]["point"]) {
+                        console.log("可以继续");
+                        var lac = activeObj[activeIndexes[ac]];
+                        var lbc = activeObj[activeIndexes[ac] - -10];
+                        var lisa = lis[lac["activeRow"] - 1][lac["activeCol"] - 1];
+                        var lisb = lis[lbc["activeRow"] - 1][lbc["activeCol"] - 1];
+                        lisa.setAttribute("class", lisa.getAttribute("class") + "  upkong");
+                        lisb.setAttribute("class", "underkong");
+                        reallyEnd = false;
+                        addClassObj.push(lisa);
+                        addClassObj.push(lisb);
+                    }
+                }
+            }
+            if (reallyEnd) {
+                alert("没了");
+            }
+            return;
+        }
+        if (repeat) {
+            createActive();
+            return;
+        }
+        rander();
+//        lis[ulsIndex - 1][lisIndex - 1].style.backgroundColor = "lightgreen";
+    }
+    //  渲染块
+    function rander() {
+        for (var item in activeObj) {
+            var activeSqu = lis[activeObj[item]["activeRow"] - 1][activeObj[item]["activeCol"] - 1];
+            activeSqu.style.backgroundColor = getBackgroundColor(activeObj[item]["point"]);
+            activeSqu.innerHTML = activeObj[item]["point"];
+            activeSqu.style.color = "black";
+        }
+    }
+    //  获得分数下的背景色
+    function getBackgroundColor(color) {
+        var r = 430 - (Math.log(color) / Math.log(2)) * 25;
+        var g = 280 - (Math.log(color) / Math.log(2)) * 25;
+        var b = ((Math.log(color) / Math.log(2)) * 25) >= 250 ? (511 - (Math.log(color) / Math.log(2)) * 25) : ((Math.log(color) / Math.log(2)) * 25);
+        return "rgb(" + r + "," + g + "," + b + ")";
+    }
+    //  随机数函数
+    function randFN(min, max) {
+        return Math.floor(Math.random() * (max - min + 1) + min)
+    }
+    //  重置颜色
+    function resetColor(activeIndexes) {
+        var row = activeObj[activeIndexes]["activeRow"];
+        var col = activeObj[activeIndexes]["activeCol"];
+        var currentLi = lis[row - 1][col - 1];
+        currentLi.style.backgroundColor = "lightyellow";
+        currentLi.style.color = "lightgreen";
+        currentLi.innerHTML = "" + row + col;
+        if (activeIndexes != "" + row + col) {
+            alert("activeIndexes != row + col");
+        }
+        //  那么就会产生一个新的空的位置
+        emptyObj[activeIndexes] = {
+            "emptyRow": row,
+            "emptyCol": col,
+        };
+        //  原来的某个活跃的块就不存在了
+        //  那么删除以前位置上的活动块
+        delete activeObj[activeIndexes];
+    }
+    document.onkeyup = function (e) {
+        console.log(e.keyCode)
+        var activeIndexes = Object.keys(activeObj).sort(function (a, b) {
+            return a - b;
+        });
+        //  上
+        if (e.keyCode == 38 || e.keyCode == 87) {
+            //  遍历这些活动的块
+            moveDetails38(activeIndexes, e.keyCode);
+            //  下
+        } else if (e.keyCode == 40 || e.keyCode == 83) {
+            moveDetails40(activeIndexes, e.keyCode);
+            //  左
+        } else if (e.keyCode == 37 || e.keyCode == 65) {
+            moveDetails37(activeIndexes, e.keyCode);
+            //  右
+        } else if (e.keyCode == 39 || e.keyCode == 68) {
+            moveDetails39(activeIndexes, e.keyCode);
+        }
+        for (var aco = 0; aco < addClassObj.length; aco++) {
+            addClassObj[aco].removeAttribute("class")
+        }
+        addClassObj = [];
+        createActive();
+        count();
+    };
+    function moveDetails38(activeIndexes, keyCode) {
+        for (var i = 0; i < activeIndexes.length; i++) {
+            //  检测当前活动块是否可以移动
+            if (activeObj[activeIndexes[i]]["activeRow"] >= 1) {
+                //  判定当前块与其他块的关系
+                for (j = 1; activeObj[activeIndexes[i]] && j < activeObj[activeIndexes[i]]["activeRow"]; j++) {
+                    mainCondition(activeIndexes[i], keyCode);
+                }
+                if (real) {
+                    var nextAcIndex = "" + (activeObj[activeIndexes[i]]["activeRow"] - 1 ) + activeObj[activeIndexes[i]]["activeCol"];
+                    realFn(activeObj[nextAcIndex], activeIndexes[i])
+                }
+            }
+        }
+    }
+    function moveDetails40(activeIndexes, keyCode) {
+        for (var i = activeIndexes.length - 1; i >= 0; i--) {
+            if (activeObj[activeIndexes[i]]["activeRow"] <= 3) {
+                for (j = 4; activeObj[activeIndexes[i]] && j > activeObj[activeIndexes[i]]["activeRow"]; j--) {
+                    mainCondition(activeIndexes[i], keyCode);
+                }
+                if (real) {
+                    var nextAcIndex = "" + (activeObj[activeIndexes[i]]["activeRow"] + 1) + activeObj[activeIndexes[i]]["activeCol"];
+                    realFn(activeObj[nextAcIndex], activeIndexes[i])
+                }
+            }
+        }
+    }
+    function moveDetails37(activeIndexes, keyCode) {
+        for (var i = 0; i < activeIndexes.length; i++) {
+            if (activeObj[activeIndexes[i]]["activeCol"] >= 1) {
+                for (j = 1; activeObj[activeIndexes[i]] && j < activeObj[activeIndexes[i]]["activeCol"]; j++) {
+                    mainCondition(activeIndexes[i], keyCode);
+                }
+                if (real) {
+                    var nextAcIndex = "" + activeObj[activeIndexes[i]]["activeRow"] + (activeObj[activeIndexes[i]]["activeCol"] - 1);
+                    realFn(activeObj[nextAcIndex], activeIndexes[i])
+                }
+            }
+        }
+    }
+    function moveDetails39(activeIndexes, keyCode) {
+        for (var i = activeIndexes.length - 1; i >= 0; i--) {
+            if (activeObj[activeIndexes[i]]["activeCol"] <= 3) {
+                for (j = 4; activeObj[activeIndexes[i]] && j > activeObj[activeIndexes[i]]["activeCol"]; j--) {
+                    mainCondition(activeIndexes[i], keyCode);
+                }
+                if (real) {
+                    var nextAcIndex = "" + activeObj[activeIndexes[i]]["activeRow"] + (activeObj[activeIndexes[i]]["activeCol"] + 1);
+                    realFn(activeObj[nextAcIndex], activeIndexes[i])
+                }
+            }
+        }
+    }
+    function summary(activeIndexes, keyCode, cur, exi) {
+        if (keyCode == 37 || keyCode == 65) {
+            var currentItem = "" + activeObj[activeIndexes]["activeRow"] + j;
+            var existItem = "" + activeObj[activeIndexes]["activeRow"] + (j - 1);
+            if (cur) {
+                activeObj[cur] = {
+                    "activeCol": activeObj[exi]["activeCol"] + 1,
+                    "activeRow": activeObj[activeIndexes]["activeRow"],
+                };
+            }
+        } else if (keyCode == 39 || keyCode == 68) {
+            var currentItem = "" + activeObj[activeIndexes]["activeRow"] + j;
+            var existItem = "" + activeObj[activeIndexes]["activeRow"] + (j + 1);
+            if (cur) {
+                activeObj[cur] = {
+                    "activeCol": activeObj[exi]["activeCol"] - 1,
+                    "activeRow": activeObj[activeIndexes]["activeRow"],
+                };
+            }
+        } else if (keyCode == 38 || keyCode == 87) {
+            var currentItem = j + "" + activeObj[activeIndexes]["activeCol"];
+            var existItem = (j - 1) + "" + activeObj[activeIndexes]["activeCol"];
+            if (cur) {
+                activeObj[cur] = {
+                    "activeRow": activeObj[exi]["activeRow"] + 1,
+                    "activeCol": activeObj[activeIndexes]["activeCol"],
+                };
+            }
+
+        } else if (keyCode == 40 || keyCode == 83) {
+            var currentItem = j + "" + activeObj[activeIndexes]["activeCol"];
+            var existItem = (j + 1) + "" + activeObj[activeIndexes]["activeCol"];
+            if (cur) {
+                activeObj[cur] = {
+                    "activeRow": activeObj[exi]["activeRow"] - 1,
+                    "activeCol": activeObj[activeIndexes]["activeCol"],
+                };
+            }
+        }
+        if (cur) {
+            return {actObj: activeObj[cur]};
+        } else {
+            return {"currentItem": currentItem, "existItem": existItem};
+        }
+    }
+    //  执行移动或合并的条件
+    function mainCondition(activeIndexes, keyCode) {
+        var obj = summary(activeIndexes, keyCode);
+        var currentItem = obj["currentItem"];
+        var existItem = obj["existItem"];
+        real = true;
+        if (emptyObj[currentItem]) {
+            real = false;
+            if (activeObj[existItem]) {
+                if (activeObj[existItem]["point"] == activeObj[activeIndexes]["point"]) {
+                    activeObj[existItem]["point"] = activeObj[existItem]["point"] * 2;
+                    resetColor(activeIndexes);
+                } else {
+                    var actObj = summary(activeIndexes, keyCode, currentItem, existItem);
+                    activeObj[currentItem] = actObj["actObj"];
+                    activeObj[currentItem]["point"] = activeObj[activeIndexes]["point"];
+                    resetColor(activeIndexes);
+                    delete emptyObj[currentItem];
+                }
+            } else {
+                hereto(currentItem, activeIndexes);
+            }
+            j = NaN;
+        }
+    }
+    //  只要挨着
+    function realFn(condition, activeIndexes) {
+        if (condition) {
+            if (condition["point"] == activeObj[activeIndexes]["point"]) {
+                //  下面的分数乘以二
+                condition["point"] = condition["point"] * 2;
+                resetColor(activeIndexes);
+            }
+        }
+    }
+    //  如果这下面不存在活动块，那就是说我可以移动到这里
+    function hereto(currentItem, activeIndexes) {
+        activeObj[currentItem] = {
+            "activeRow": emptyObj[currentItem]["emptyRow"],
+            "activeCol": emptyObj[currentItem]["emptyCol"],
+            "point": activeObj[activeIndexes]["point"]
+        };
+        //  上色
+        resetColor(activeIndexes);
+        //  现在是有空位的那么删除
+        delete emptyObj[currentItem];
+    }
+    document.onkeydown = function (e) {
+        if (e.keyCode != 116) {
+            e.preventDefault();
+        }
+    };
+    document.onmousedown = function (e) {
+        e.preventDefault();
+    };
+    function count() {
+        var e = 0;
+        var a = 0;
+        for (var i in emptyObj) {
+            e++;
+        }
+        for (var i in activeObj) {
+            a++;
+        }
+        if (e + a != 16) {
+            alert("不是16了");
+            console.log(emptyObj, e);
+            console.log(activeObj, a);
+        }
+    }
+    var startX = 0;
+    var endX = 0;
+    var startY = 0;
+    var endY = 0;
+    document.addEventListener("touchstart", function (e) {
+        startX = e.changedTouches[0].clientX;
+        startY = e.changedTouches[0].clientY;
+    }, false);
+    var touchNum = 0;
+    document.addEventListener("touchend", function (e) {
+        var activeIndexes = Object.keys(activeObj).sort(function (a, b) {
+            return a - b;
+        });
+        endX = e.changedTouches[0].clientX;
+        endY = e.changedTouches[0].clientY;
+        if (endX - startX == 0 && endY - startY == 0) {
+            return
+        }
+        var absX = endX - startX;
+        var diffX = Math.abs(absX);
+        var absY = endY - startY;
+        var diffY = Math.abs(absY);
+        clearTimeout(timer);
+        if (diffX < diffY && absY < 0) {
+            console.log("向上移动");
+            moveDetails38(activeIndexes, 38);
+            timer = setTimeout(picMove, 0, 38);
+        }
+        if (diffX < diffY && absY > 0) {
+            console.log("向下移动");
+            moveDetails40(activeIndexes, 40);
+            timer = setTimeout(picMove, 0, 40);
+        }
+        if (diffX > diffY && absX < 0) {
+            console.log("向左移动");
+            moveDetails37(activeIndexes, 37);
+            timer = setTimeout(picMove, 0, 37);
+        }
+        if (diffX > diffY && absX > 0) {
+            console.log("向右移动");
+            moveDetails39(activeIndexes, 39);
+            timer = setTimeout(picMove, 0, 39);
+        }
+        for (var aco = 0; aco < addClassObj.length; aco++) {
+            addClassObj[aco].removeAttribute("class")
+        }
+        addClassObj = [];
+        createActive();
+        count();
+    }, false);
+    var pic = document.getElementById("pic");
+    var timer = null;
+    var num = 0;
+    var spritesLeft = 0;
+    var spritesTop = 0;
+    function picMove(keyCode) {
+        switch (keyCode) {
+            case 38:
+                spritesTop = -5.3;
+                break;
+            case 40:
+                spritesTop = 0;
+                break;
+            case 37:
+                spritesTop = -2.6;
+                break;
+            case 39:
+                spritesTop = -7.9;
+                break;
+        }
+        num++;
+        spritesLeft = spritesLeft - 2;
+        if (num >= 8) {
+            num = 0;
+            spritesLeft = 0;
+        }
+        pic.style.backgroundPosition = spritesLeft + "em " + spritesTop + "em";
+        timer = setTimeout(picMove, 100, keyCode);
+    }
+</script>
+</html>
+<script>
+    /**
+     //    activeObj = {
+    //        "11": {"activeRow": 1, "activeCol": 1, "point": 2},
+    //        "12": {"activeRow": 1, "activeCol": 2, "point": 4},
+    //        "13": {"activeRow": 1, "activeCol": 3, "point": 8},
+    //        "14": {"activeRow": 1, "activeCol": 4, "point": 16},
+    //        "21": {"activeRow": 2, "activeCol": 1, "point": 2},
+    //        "22": {"activeRow": 2, "activeCol": 2, "point": 64},
+    //        "23": {"activeRow": 2, "activeCol": 3, "point": 128},
+    //        "24": {"activeRow": 2, "activeCol": 4, "point": 256},
+    //        "31": {"activeRow": 3, "activeCol": 1, "point": 512},
+    //        "32": {"activeRow": 3, "activeCol": 2, "point": 1024},
+    //        "33": {"activeRow": 3, "activeCol": 3, "point": 2048},
+    //        "34": {"activeRow": 3, "activeCol": 4, "point": 4096},
+    //        "41": {"activeRow": 4, "activeCol": 1, "point": 8192},
+    //    };
+     //    emptyObj = {
+    //        "42": {"emptyRow": 4, "emptyCol": 2},
+    //        "43": {"emptyRow": 4, "emptyCol": 3},
+    //        "44": {"emptyRow": 4, "emptyCol": 4}
+    //    }
+     **/
+</script>
+<script>
+</script>
